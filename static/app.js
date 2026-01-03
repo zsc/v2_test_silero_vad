@@ -35,11 +35,52 @@ let vadData = []; // Array of {prob, isSpeech, isConfirmed, time, fft}
 let windowSizeSec = parseInt(timeWindowSelect.value);
 const pendingResponses = new Map();
 
+// Mel Spectrogram Constants
+const NUM_MEL_BINS = 80;
+let melFilterBank = [];
+
 function initCanvases() {
     spectrogramCanvas.width = spectrogramCanvas.clientWidth;
     spectrogramCanvas.height = spectrogramCanvas.clientHeight;
     vadCanvas.width = vadCanvas.clientWidth;
     vadCanvas.height = vadCanvas.clientHeight;
+    
+    // Recalculate Mel filterbank when canvas or FFT settings might change
+    if (analyser) {
+        calculateMelFilterBank(analyser.frequencyBinCount, 16000);
+    }
+}
+
+function hzToMel(hz) {
+    return 2595 * Math.log10(1 + hz / 700);
+}
+
+function melToHz(mel) {
+    return 700 * (Math.pow(10, mel / 2595) - 1);
+}
+
+function calculateMelFilterBank(fftSize, sampleRate) {
+    melFilterBank = [];
+    const minHz = 0;
+    const maxHz = sampleRate / 2;
+    const minMel = hzToMel(minHz);
+    const maxMel = hzToMel(maxHz);
+    
+    const melStep = (maxMel - minMel) / NUM_MEL_BINS;
+    const binWidth = sampleRate / (fftSize * 2); // fftSize here is actually frequencyBinCount (N/2)
+
+    for (let i = 0; i < NUM_MEL_BINS; i++) {
+        const startMel = minMel + i * melStep;
+        const endMel = minMel + (i + 1) * melStep;
+        
+        const startHz = melToHz(startMel);
+        const endHz = melToHz(endMel);
+        
+        const startBin = Math.floor(startHz / binWidth);
+        const endBin = Math.ceil(endHz / binWidth);
+        
+        melFilterBank.push({ start: startBin, end: endBin });
+    }
 }
 
 window.addEventListener('resize', initCanvases);
@@ -76,6 +117,13 @@ timeWindowSelect.addEventListener('change', () => {
     vadData = []; 
 });
 
+fftSizeSelect.addEventListener('change', () => {
+    if (analyser) {
+        analyser.fftSize = parseInt(fftSizeSelect.value);
+        calculateMelFilterBank(analyser.frequencyBinCount, 16000);
+    }
+});
+
 startBtn.onclick = start;
 stopBtn.onclick = stop;
 resetBtn.onclick = () => {
@@ -97,7 +145,10 @@ async function start() {
         
         analyser = audioContext.createAnalyser();
         analyser.fftSize = parseInt(fftSizeSelect.value);
+        analyser.smoothingTimeConstant = 0; // Don't double smooth, we want raw frames
         
+        calculateMelFilterBank(analyser.frequencyBinCount, 16000);
+
         workletNode = new AudioWorkletNode(audioContext, 'audio-processor');
         
         source.connect(analyser);
@@ -233,7 +284,7 @@ function draw() {
 
     // Draw Spectrogram
     ctxSpec.clearRect(0, 0, width, height);
-    if (vadData.length > 1) {
+    if (vadData.length > 1 && melFilterBank.length > 0) {
         for (let i = 0; i < vadData.length; i++) {
             const item = vadData[i];
             const x = ((item.time - cutoff) / (windowSizeSec * 1000)) * width;
@@ -241,14 +292,26 @@ function draw() {
                 ((vadData[i+1].time - cutoff) / (windowSizeSec * 1000)) * width : width;
             
             const fft = item.fft;
-            const binCount = fft.length; 
-            const sliceHeight = height / binCount;
+            const sliceHeight = height / NUM_MEL_BINS;
             
-            for (let j = 0; j < binCount; j++) {
-                const value = fft[j];
-                if (value > 0) {
-                    const hue = (1 - value / 255) * 240;
-                    ctxSpec.fillStyle = `hsl(${hue}, 100%, ${value / 255 * 50}%)`;
+            // Render Mel Bins
+            for (let j = 0; j < NUM_MEL_BINS; j++) {
+                const range = melFilterBank[j];
+                // Aggregate energy in this Mel bin (using Max or Avg)
+                let maxVal = 0;
+                // Safety check
+                const start = Math.min(range.start, fft.length - 1);
+                const end = Math.min(range.end, fft.length);
+                
+                for (let k = start; k < end; k++) {
+                    if (fft[k] > maxVal) maxVal = fft[k];
+                }
+                
+                if (maxVal > 0) {
+                    const hue = (1 - maxVal / 255) * 240;
+                    ctxSpec.fillStyle = `hsl(${hue}, 100%, ${maxVal / 255 * 50}%)`;
+                    // Draw from bottom up (low freq at bottom)
+                    // j=0 is lowest freq (bottom)
                     ctxSpec.fillRect(x, height - (j + 1) * sliceHeight, nextX - x + 1, sliceHeight + 1);
                 }
             }

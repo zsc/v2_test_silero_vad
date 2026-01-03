@@ -8,7 +8,7 @@
 
 主要目标包括：
 *   **实时采集**：使用浏览器 Web Audio API 获取麦克风流。
-*   **可视化对照**：同步显示滚动声谱图（Spectrogram）和 VAD 概率曲线/状态，便于直观观察语音与 VAD 信号的对应关系。
+*   **可视化对照**：同步显示**滚动 Mel 声谱图（Mel Spectrogram）**和 VAD 概率曲线/状态，便于直观观察语音与 VAD 信号的对应关系。
 *   **低延迟**：通过 AudioWorklet 和 WebSocket 实现低延迟通信（目标 < 300ms）。
 *   **交互式调参**：支持在网页端实时调整 VAD 阈值、静音保护（Hangover）等参数。
 
@@ -27,7 +27,7 @@
 
 1.  **前端 (HTML/JS)**：
     *   使用 `AudioWorklet` 进行音频采集与 16kHz 重采样（int16 PCM）。
-    *   使用 Canvas 绘制实时瀑布图（Spectrogram）和 VAD 曲线。
+    *   使用 Canvas 绘制实时 **Mel 瀑布图**（Mel Spectrogram，80 Mel bins）。
     *   通过 WebSocket 发送二进制音频帧。
 
 2.  **后端 (Python/FastAPI)**：
@@ -58,7 +58,7 @@ python3 main.py
 1.  打开浏览器访问 `http://localhost:8000`。
 2.  点击 **Start** 按钮，授予麦克风权限。
 3.  **观察可视化**：
-    *   上方为滚动声谱图。
+    *   上方为滚动 **Mel 声谱图**（低频在下，高频在上，颜色亮度表示能量）。
     *   下方为 VAD 状态图：
         *   **绿色曲线**：语音概率 (Probability)。
         *   **绿色色块**：快速触发状态 (Fast Trigger)。
