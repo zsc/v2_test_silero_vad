@@ -9,8 +9,14 @@ let seq = 0;
 const startBtn = document.getElementById('startBtn');
 const stopBtn = document.getElementById('stopBtn');
 const resetBtn = document.getElementById('resetBtn');
+
 const thresholdInput = document.getElementById('threshold');
 const thresholdVal = document.getElementById('thresholdVal');
+const minSilenceInput = document.getElementById('minSilence');
+const minSilenceVal = document.getElementById('minSilenceVal');
+const speechPadInput = document.getElementById('speechPad');
+const speechPadVal = document.getElementById('speechPadVal');
+
 const timeWindowSelect = document.getElementById('timeWindow');
 const fftSizeSelect = document.getElementById('fftSize');
 
@@ -25,7 +31,7 @@ const probEl = document.getElementById('prob');
 const speechEl = document.getElementById('speechState');
 const latencyEl = document.getElementById('latency');
 
-let vadData = []; // Array of {prob: number, isSpeech: boolean, time: number, fft: Uint8Array}
+let vadData = []; // Array of {prob, isSpeech, isConfirmed, time, fft}
 let windowSizeSec = parseInt(timeWindowSelect.value);
 const pendingResponses = new Map();
 
@@ -39,11 +45,30 @@ function initCanvases() {
 window.addEventListener('resize', initCanvases);
 initCanvases();
 
+function sendConfig() {
+    if (socket && socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({
+            type: 'config', 
+            threshold: parseFloat(thresholdInput.value),
+            min_silence_ms: parseInt(minSilenceInput.value),
+            speech_pad_ms: parseInt(speechPadInput.value)
+        }));
+    }
+}
+
 thresholdInput.addEventListener('input', () => {
     thresholdVal.textContent = parseFloat(thresholdInput.value).toFixed(2);
-    if (socket && socket.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({type: 'config', threshold: parseFloat(thresholdInput.value)}));
-    }
+    sendConfig();
+});
+
+minSilenceInput.addEventListener('input', () => {
+    minSilenceVal.textContent = minSilenceInput.value;
+    sendConfig();
+});
+
+speechPadInput.addEventListener('input', () => {
+    speechPadVal.textContent = speechPadInput.value;
+    sendConfig();
 });
 
 timeWindowSelect.addEventListener('change', () => {
@@ -120,6 +145,7 @@ function setupWebSocket() {
     socket.onopen = () => {
         statusEl.textContent = 'Connected';
         statusEl.classList.add('connected');
+        sendConfig(); // Send initial config
     };
     
     socket.onmessage = (event) => {
@@ -186,6 +212,7 @@ function handleVadResult(data) {
     vadData.push({
         prob: data.speech_prob,
         isSpeech: data.is_speech,
+        isConfirmed: data.is_confirmed,
         time: now,
         fft: fftData
     });
@@ -241,6 +268,8 @@ function drawVad() {
     ctxVad.clearRect(0, 0, width, height);
     
     const thresholdY = height * (1 - parseFloat(thresholdInput.value));
+    
+    // Draw grid/threshold line
     ctxVad.strokeStyle = '#555';
     ctxVad.setLineDash([5, 5]);
     ctxVad.beginPath();
@@ -251,6 +280,29 @@ function drawVad() {
     
     if (vadData.length < 2) return;
     
+    // Draw "Fast" Speech (Green) - Bottom layer
+    ctxVad.fillStyle = 'rgba(0, 230, 118, 0.3)';
+    for (let i = 0; i < vadData.length - 1; i++) {
+        if (vadData[i].isSpeech) {
+            const x1 = ((vadData[i].time - cutoff) / (windowSizeSec * 1000)) * width;
+            const x2 = ((vadData[i+1].time - cutoff) / (windowSizeSec * 1000)) * width;
+            // Draw a bit higher to distinguish
+            ctxVad.fillRect(x1, height - 30, x2 - x1, 15);
+        }
+    }
+
+    // Draw "Stable" Speech (Blue) - Top layer
+    ctxVad.fillStyle = 'rgba(64, 196, 255, 0.5)';
+    for (let i = 0; i < vadData.length - 1; i++) {
+        if (vadData[i].isConfirmed) {
+            const x1 = ((vadData[i].time - cutoff) / (windowSizeSec * 1000)) * width;
+            const x2 = ((vadData[i+1].time - cutoff) / (windowSizeSec * 1000)) * width;
+            // Draw at bottom
+            ctxVad.fillRect(x1, height - 15, x2 - x1, 15);
+        }
+    }
+    
+    // Draw probability curve
     ctxVad.strokeStyle = '#00e676';
     ctxVad.lineWidth = 2;
     ctxVad.beginPath();
@@ -262,13 +314,4 @@ function drawVad() {
         else ctxVad.lineTo(x, y);
     }
     ctxVad.stroke();
-    
-    ctxVad.fillStyle = 'rgba(0, 230, 118, 0.3)';
-    for (let i = 0; i < vadData.length - 1; i++) {
-        if (vadData[i].isSpeech) {
-            const x1 = ((vadData[i].time - cutoff) / (windowSizeSec * 1000)) * width;
-            const x2 = ((vadData[i+1].time - cutoff) / (windowSizeSec * 1000)) * width;
-            ctxVad.fillRect(x1, height - 20, x2 - x1, 20);
-        }
-    }
 }

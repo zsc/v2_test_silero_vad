@@ -61,7 +61,8 @@ async def websocket_endpoint(websocket: WebSocket):
                     "type": "vad_result",
                     "seq": seq,
                     "speech_prob": speech_prob,
-                    "is_speech": speech_prob > 0.5, # Simple threshold
+                    "is_speech": speech_prob > vad_iterator.threshold, # Raw instant decision
+                    "is_confirmed": vad_iterator.triggered, # Smoothed/Stable decision
                     "event": vad_out if vad_out else None
                 }
                 await websocket.send_json(response)
@@ -70,8 +71,12 @@ async def websocket_endpoint(websocket: WebSocket):
                 data = json.loads(message["text"])
                 if data.get("type") == "config":
                     # Update threshold or other params if needed
-                    threshold = data.get("threshold", 0.5)
-                    vad_iterator.threshold = threshold
+                    if "threshold" in data:
+                        vad_iterator.threshold = data["threshold"]
+                    if "min_silence_ms" in data:
+                        vad_iterator.min_silence_samples = data["min_silence_ms"] * 16 # 16 samples per ms at 16k
+                    if "speech_pad_ms" in data:
+                        vad_iterator.speech_pad_samples = data["speech_pad_ms"] * 16
                     
     except WebSocketDisconnect:
         print("Client disconnected")

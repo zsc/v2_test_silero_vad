@@ -16,16 +16,28 @@
             <button id="resetBtn">Reset</button>
             
             <div class="param">
-                <label for="threshold">VAD Threshold: <span id="thresholdVal">0.50</span></label>
+                <label for="threshold">Threshold: <span id="thresholdVal">0.50</span></label>
                 <input type="range" id="threshold" min="0" max="1" step="0.01" value="0.50">
+            </div>
+
+            <div class="param">
+                <label for="minSilence">Min Silence (ms): <span id="minSilenceVal">100</span></label>
+                <input type="range" id="minSilence" min="0" max="1000" step="50" value="100">
+            </div>
+
+            <div class="param">
+                <label for="speechPad">Speech Pad (ms): <span id="speechPadVal">30</span></label>
+                <input type="range" id="speechPad" min="0" max="500" step="10" value="30">
             </div>
             
             <div class="param">
                 <label for="timeWindow">Window (s):</label>
                 <select id="timeWindow">
+                    <option value="1">1s</option>
+                    <option value="2">2s</option>
+                    <option value="3" selected>3s</option>
                     <option value="5">5s</option>
-                    <option value="10" selected>10s</option>
-                    <option value="20">20s</option>
+                    <option value="10">10s</option>
                 </select>
             </div>
 
@@ -46,6 +58,11 @@
             </div>
             <div class="canvas-container">
                 <h3>VAD (Probability & Speech)</h3>
+                <div class="legend">
+                    <span style="color: #00e676">■ Raw Probability</span>
+                    <span style="color: rgba(0, 230, 118, 0.3); background: #333; padding: 0 4px;">■ Fast Trigger</span>
+                    <span style="color: rgba(64, 196, 255, 0.5); background: #333; padding: 0 4px;">■ Stable/Confirmed</span>
+                </div>
                 <canvas id="vadCanvas"></canvas>
             </div>
         </div>
