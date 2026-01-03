@@ -26,47 +26,51 @@
 采用 **Browser + WebSocket + Python Backend** 架构：
 
 1.  **前端 (HTML/JS)**：
-    *   使用 `AudioWorklet` 进行音频采集与 16kHz 重采样（int16 PCM）。
-    *   使用 Canvas 绘制实时 **Mel 瀑布图**（Mel Spectrogram，80 Mel bins）。
-    *   通过 WebSocket 发送二进制音频帧。
+    *   使用 `AudioWorklet` 进行音频采集，固定采样率为 16kHz。
+    *   实时绘制 **Mel 瀑布图**（Mel Spectrogram），默认使用 **80 Mel bins**。
+    *   通过 WebSocket 发送自定义**二进制协议**帧（包含 Magic Header、Seq、PCM 数据）。
+    *   支持动态调整 FFT 大小（1024-4096）和显示窗口长度（1s-10s）。
 
 2.  **后端 (Python/FastAPI)**：
     *   基于 `FastAPI` 提供 WebSocket 服务。
-    *   集成 `PyTorch` 和 `silero-vad` 进行实时推理。
-    *   支持动态配置更新（阈值、平滑窗口等）。
+    *   集成 `PyTorch` 和 `silero-vad` 模型进行高性能推理（默认开启单线程优化）。
+    *   通过 `VADIterator` 维护状态，实时反馈 Speech Probability、Fast Trigger 和 Stable/Confirmed 状态。
+    *   支持通过 WebSocket 实时更新模型配置（Threshold, Min Silence, Speech Pad）。
 
 ## 3. 快速开始
 
 ### 3.1 环境要求
 *   Python 3.8+
-*   Node.js (可选，仅用于开发时的静态检查)
+*   操作系统支持声音设备访问（建议 Chrome/Edge 浏览器）
 
 ### 3.2 安装依赖
 ```bash
-pip install silero-vad fastapi uvicorn numpy torch aiofiles
+pip install silero-vad fastapi uvicorn numpy torch
 ```
-*(注意：`silero-vad` 可能会自动安装 `onnxruntime` 和 `torch`)*
 
 ### 3.3 运行
 启动后端服务：
 ```bash
 python3 main.py
 ```
-服务启动后，终端会显示访问地址（通常为 `http://0.0.0.0:8000`）。
+服务默认运行在 `http://localhost:8000`。
 
 ### 3.4 使用说明
 1.  打开浏览器访问 `http://localhost:8000`。
-2.  点击 **Start** 按钮，授予麦克风权限。
-3.  **观察可视化**：
-    *   上方为滚动 **Mel 声谱图**（低频在下，高频在上，颜色亮度表示能量）。
-    *   下方为 VAD 状态图：
-        *   **绿色曲线**：语音概率 (Probability)。
-        *   **绿色色块**：快速触发状态 (Fast Trigger)。
-        *   **蓝色色块**：稳定确认状态 (Stable Confirmed)。
-4.  **调整参数**：
-    *   **Threshold**：判定阈值。
-    *   **Min Silence (ms)**：静音保护时间（Hangover），即停止说话后多久才判定为静音（建议 200-400ms 以保留尾音）。
-    *   **Speech Pad (ms)**：语音段前后的填充缓冲。
+2.  点击 **Start** 按钮并授权麦克风权限。
+3.  **界面说明**：
+    *   **Spectrogram**：滚动 Mel 声谱图，低频在下，颜色亮度代表能量。
+    *   **VAD (Probability & Speech)**：
+        *   **绿色曲线**：原始语音概率 (0.0~1.0)。
+        *   **浅绿色背景**：快速触发状态 (Fast Trigger)，基于原始概率即时判定。
+        *   **淡蓝色背景**：稳定确认状态 (Stable/Confirmed)，基于平滑算法和静音保护。
+    *   **Status Panel**：实时显示当前序列号 (Seq)、概率 (Prob)、语音开关状态和**端到端延迟 (Latency)**。
+4.  **实时调参**：
+    *   **Threshold**：判定阈值（默认 0.5）。
+    *   **Min Silence (ms)**：判定为静音所需的连续静音时长（默认 100ms）。
+    *   **Speech Pad (ms)**：检测到语音后向前/向后填充的缓冲时间（默认 30ms）。
+    *   **Window (s)**：画布显示的滚动时长。
+    *   **FFT Size**：影响声谱图的频率分辨率。
 
 ## 4. 参考文档
 详细的设计规格说明请参考 [CLAUDE.md](CLAUDE.md)。
