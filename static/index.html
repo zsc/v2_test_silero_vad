@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-time Silero VAD & Spectrogram</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Real-time Mic Spectrum + Silero VAD</h1>
+        
+        <div class="controls">
+            <button id="startBtn">Start</button>
+            <button id="stopBtn" disabled>Stop</button>
+            <button id="resetBtn">Reset</button>
+            
+            <div class="param">
+                <label for="threshold">VAD Threshold: <span id="thresholdVal">0.50</span></label>
+                <input type="range" id="threshold" min="0" max="1" step="0.01" value="0.50">
+            </div>
+            
+            <div class="param">
+                <label for="timeWindow">Window (s):</label>
+                <select id="timeWindow">
+                    <option value="5">5s</option>
+                    <option value="10" selected>10s</option>
+                    <option value="20">20s</option>
+                </select>
+            </div>
+
+            <div class="param">
+                <label for="fftSize">FFT Size:</label>
+                <select id="fftSize">
+                    <option value="1024">1024</option>
+                    <option value="2048" selected>2048</option>
+                    <option value="4096">4096</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="visuals">
+            <div class="canvas-container">
+                <h3>Spectrogram</h3>
+                <canvas id="spectrogramCanvas"></canvas>
+            </div>
+            <div class="canvas-container">
+                <h3>VAD (Probability & Speech)</h3>
+                <canvas id="vadCanvas"></canvas>
+            </div>
+        </div>
+
+        <div class="status-panel">
+            <p>Status: <span id="status">Disconnected</span></p>
+            <p>Seq: <span id="seq">0</span></p>
+            <p>Prob: <span id="prob">0.00</span></p>
+            <p>Speech: <span id="speechState">OFF</span></p>
+            <p>Latency: <span id="latency">0</span> ms</p>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
