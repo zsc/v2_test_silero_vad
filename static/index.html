@@ -14,17 +14,11 @@
             <button id="startBtn">Start</button>
             <button id="stopBtn" disabled>Stop</button>
             <button id="resetBtn">Reset</button>
-
-            <div class="param">
-                <label for="modelSelect">Model:</label>
-                <select id="modelSelect">
-                    <option value="silero" selected>Silero VAD</option>
-                    <option value="fsmn">FSMN VAD</option>
-                </select>
-            </div>
             
             <div class="param">
-                <label for="threshold">Threshold: <span id="thresholdVal">0.50</span></label>
+                <label for="threshold">Threshold (Silero): <span id="thresholdVal">0.50</span></label>
+                <input type="range" id="threshold" min="0" max="1" step="0.01" value="0.50">
+            </div>
                 <input type="range" id="threshold" min="0" max="1" step="0.01" value="0.50">
             </div>
 
@@ -65,11 +59,11 @@
                 <canvas id="spectrogramCanvas"></canvas>
             </div>
             <div class="canvas-container">
-                <h3>VAD (Probability & Speech)</h3>
+                <h3>VAD Comparison (Top: Silero, Bottom: FSMN)</h3>
                 <div class="legend">
-                    <span style="color: #00e676">■ Raw Probability</span>
-                    <span style="color: rgba(0, 230, 118, 0.3); background: #333; padding: 0 4px;">■ Fast Trigger</span>
-                    <span style="color: rgba(64, 196, 255, 0.5); background: #333; padding: 0 4px;">■ Stable/Confirmed</span>
+                    <span style="color: #00e676">■ Silero Prob</span>
+                    <span style="color: rgba(64, 196, 255, 0.5); background: #333; padding: 0 4px;">■ Silero Speech</span>
+                    <span style="color: #ff9100">■ FSMN Speech</span>
                 </div>
                 <canvas id="vadCanvas"></canvas>
             </div>
@@ -78,9 +72,9 @@
         <div class="status-panel">
             <p>Status: <span id="status">Disconnected</span></p>
             <p>Seq: <span id="seq">0</span></p>
-            <p>Prob: <span id="prob">0.00</span></p>
-            <p>Speech: <span id="speechState">OFF</span></p>
-            <p>Latency: <span id="latency">0</span> ms</p>
+            <p>Silero: <span id="sileroProb">0.00</span></p>
+            <p>FSMN: <span id="fsmnState">OFF</span></p>
+            <p>Lat: <span id="latency">0</span> ms</p>
         </div>
     </div>
 

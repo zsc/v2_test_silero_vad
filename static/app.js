@@ -16,7 +16,7 @@ const minSilenceInput = document.getElementById('minSilence');
 const minSilenceVal = document.getElementById('minSilenceVal');
 const speechPadInput = document.getElementById('speechPad');
 const speechPadVal = document.getElementById('speechPadVal');
-const modelSelect = document.getElementById('modelSelect');
+// Model select removed
 
 const timeWindowSelect = document.getElementById('timeWindow');
 const fftSizeSelect = document.getElementById('fftSize');
@@ -28,11 +28,12 @@ const ctxVad = vadCanvas.getContext('2d');
 
 const statusEl = document.getElementById('status');
 const seqEl = document.getElementById('seq');
-const probEl = document.getElementById('prob');
-const speechEl = document.getElementById('speechState');
+// Replaced elements for detailed status
+const sileroProbEl = document.getElementById('sileroProb');
+const fsmnStateEl = document.getElementById('fsmnState');
 const latencyEl = document.getElementById('latency');
 
-let vadData = []; // Array of {prob, isSpeech, isConfirmed, time, fft}
+let vadData = []; // Array of {silero: {prob, isSpeech...}, fsmn: {prob, isSpeech...}, time, fft}
 let windowSizeSec = parseInt(timeWindowSelect.value);
 const pendingResponses = new Map();
 
@@ -91,19 +92,12 @@ function sendConfig() {
     if (socket && socket.readyState === WebSocket.OPEN) {
         socket.send(JSON.stringify({
             type: 'config', 
-            model: modelSelect.value,
             threshold: parseFloat(thresholdInput.value),
             min_silence_ms: parseInt(minSilenceInput.value),
             speech_pad_ms: parseInt(speechPadInput.value)
         }));
     }
 }
-
-modelSelect.addEventListener('change', () => {
-    sendConfig();
-    vadData = [];
-    initCanvases();
-});
 
 thresholdInput.addEventListener('input', () => {
     thresholdVal.textContent = parseFloat(thresholdInput.value).toFixed(2);
@@ -260,18 +254,20 @@ function handleVadResult(data) {
     }
     
     seqEl.textContent = data.seq;
-    probEl.textContent = data.speech_prob.toFixed(3);
-    speechEl.textContent = data.is_speech ? 'ON' : 'OFF';
-    speechEl.style.color = data.is_speech ? '#00e676' : '#ff5252';
+    
+    if (sileroProbEl) sileroProbEl.textContent = data.silero.prob.toFixed(3);
+    if (fsmnStateEl) {
+        fsmnStateEl.textContent = data.fsmn.is_speech ? 'ON' : 'OFF';
+        fsmnStateEl.style.color = data.fsmn.is_speech ? '#ff9100' : '#888';
+    }
     
     const bufferLength = analyser.frequencyBinCount;
     const fftData = new Uint8Array(bufferLength);
     analyser.getByteFrequencyData(fftData);
 
     vadData.push({
-        prob: data.speech_prob,
-        isSpeech: data.is_speech,
-        isConfirmed: data.is_confirmed,
+        silero: data.silero,
+        fsmn: data.fsmn,
         time: now,
         fft: fftData
     });
@@ -338,9 +334,15 @@ function drawVad() {
     
     ctxVad.clearRect(0, 0, width, height);
     
-    const thresholdY = height * (1 - parseFloat(thresholdInput.value));
+    if (vadData.length < 2) return;
     
-    // Draw grid/threshold line
+    const sileroHeight = height / 2;
+    const fsmnHeight = height / 2;
+    
+    // --- TOP: Silero ---
+    const thresholdY = sileroHeight * (1 - parseFloat(thresholdInput.value));
+    
+    // Draw grid/threshold line for Silero
     ctxVad.strokeStyle = '#555';
     ctxVad.setLineDash([5, 5]);
     ctxVad.beginPath();
@@ -349,40 +351,59 @@ function drawVad() {
     ctxVad.stroke();
     ctxVad.setLineDash([]);
     
-    if (vadData.length < 2) return;
-    
-    // Draw "Fast" Speech (Green) - Bottom layer
+    // Draw "Fast" Speech (Green) - Bottom of Silero section
     ctxVad.fillStyle = 'rgba(0, 230, 118, 0.3)';
     for (let i = 0; i < vadData.length - 1; i++) {
-        if (vadData[i].isSpeech) {
+        if (vadData[i].silero.is_speech) {
             const x1 = ((vadData[i].time - cutoff) / (windowSizeSec * 1000)) * width;
             const x2 = ((vadData[i+1].time - cutoff) / (windowSizeSec * 1000)) * width;
             // Draw a bit higher to distinguish
-            ctxVad.fillRect(x1, height - 30, x2 - x1, 15);
+            ctxVad.fillRect(x1, sileroHeight - 30, x2 - x1, 15);
         }
     }
 
-    // Draw "Stable" Speech (Blue) - Top layer
+    // Draw "Stable" Speech (Blue) - Bottom of Silero section
     ctxVad.fillStyle = 'rgba(64, 196, 255, 0.5)';
     for (let i = 0; i < vadData.length - 1; i++) {
-        if (vadData[i].isConfirmed) {
+        if (vadData[i].silero.is_confirmed) {
             const x1 = ((vadData[i].time - cutoff) / (windowSizeSec * 1000)) * width;
             const x2 = ((vadData[i+1].time - cutoff) / (windowSizeSec * 1000)) * width;
             // Draw at bottom
-            ctxVad.fillRect(x1, height - 15, x2 - x1, 15);
+            ctxVad.fillRect(x1, sileroHeight - 15, x2 - x1, 15);
         }
     }
     
-    // Draw probability curve
+    // Draw probability curve (Silero)
     ctxVad.strokeStyle = '#00e676';
     ctxVad.lineWidth = 2;
     ctxVad.beginPath();
-    
     for (let i = 0; i < vadData.length; i++) {
         const x = ((vadData[i].time - cutoff) / (windowSizeSec * 1000)) * width;
-        const y = height * (1 - vadData[i].prob);
+        const y = sileroHeight * (1 - vadData[i].silero.prob);
         if (i === 0) ctxVad.moveTo(x, y);
         else ctxVad.lineTo(x, y);
     }
     ctxVad.stroke();
+
+    // --- BOTTOM: FSMN ---
+    // FSMN is binary (0 or 1), so we just draw blocks
+    
+    // Separator line
+    ctxVad.strokeStyle = '#444';
+    ctxVad.beginPath();
+    ctxVad.moveTo(0, sileroHeight);
+    ctxVad.lineTo(width, sileroHeight);
+    ctxVad.stroke();
+    
+    const fsmnBaseY = height;
+    
+    ctxVad.fillStyle = '#ff9100'; // Orange for FSMN
+    for (let i = 0; i < vadData.length - 1; i++) {
+        if (vadData[i].fsmn.is_speech) {
+            const x1 = ((vadData[i].time - cutoff) / (windowSizeSec * 1000)) * width;
+            const x2 = ((vadData[i+1].time - cutoff) / (windowSizeSec * 1000)) * width;
+            // Fill most of the bottom section
+            ctxVad.fillRect(x1, sileroHeight + 10, x2 - x1, fsmnHeight - 20);
+        }
+    }
 }
