@@ -16,6 +16,7 @@ const minSilenceInput = document.getElementById('minSilence');
 const minSilenceVal = document.getElementById('minSilenceVal');
 const speechPadInput = document.getElementById('speechPad');
 const speechPadVal = document.getElementById('speechPadVal');
+const modelSelect = document.getElementById('modelSelect');
 
 const timeWindowSelect = document.getElementById('timeWindow');
 const fftSizeSelect = document.getElementById('fftSize');
@@ -90,12 +91,19 @@ function sendConfig() {
     if (socket && socket.readyState === WebSocket.OPEN) {
         socket.send(JSON.stringify({
             type: 'config', 
+            model: modelSelect.value,
             threshold: parseFloat(thresholdInput.value),
             min_silence_ms: parseInt(minSilenceInput.value),
             speech_pad_ms: parseInt(speechPadInput.value)
         }));
     }
 }
+
+modelSelect.addEventListener('change', () => {
+    sendConfig();
+    vadData = [];
+    initCanvases();
+});
 
 thresholdInput.addEventListener('input', () => {
     thresholdVal.textContent = parseFloat(thresholdInput.value).toFixed(2);
